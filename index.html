@@ -260,7 +260,7 @@
                         
                         <!-- 📋 折りたたみ式材料エリア -->
                         <details class="toggle-details">
-                            <summary class="toggle-summary">▼ 材料・買うものを表示</summary>
+                            <summary class="toggle-summary">📋 材料・買うものを表示</summary>
                             <div class="toggle-content">${r.ingredients || '未登録'}</div>
                         </details>
 
@@ -284,7 +284,7 @@
                     shopCard.innerHTML = `
                         <div class="shop-title">【${r.title}】</div>
                         <details class="toggle-details" open> <!-- 買い物は最初から開いておく設定（お好みで消せます） -->
-                            <summary class="toggle-summary">▼ 買うものリスト</summary>
+                            <summary class="toggle-summary">📋 買うものリスト</summary>
                             <div class="toggle-content">${r.ingredients}</div>
                         </details>
                     `;
