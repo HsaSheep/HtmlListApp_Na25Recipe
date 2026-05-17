@@ -36,14 +36,19 @@
         /* レシピ追加フォーム & 設定エリア */
         .form-group, .setting-group { background: var(--card-bg); padding: 16px; border-radius: 12px; margin-bottom: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .form-group input, .form-group textarea { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #dddddd; border-radius: 6px; font-size: 14px; }
-        .form-group textarea { height: 60px; resize: none; }
+        .form-group textarea { height: 120px; resize: none; } /* 入力しやすく少し広げました */
         .btn-submit { width: 100%; background: var(--primary-color); color: white; padding: 12px; border: none; border-radius: 6px; font-weight: bold; font-size: 14px; cursor: pointer; }
 
         /* レシピカード */
         .recipe-card { background: var(--card-bg); padding: 16px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .recipe-title { font-size: 16px; font-weight: bold; margin-bottom: 6px; color: var(--text-color); text-decoration: none; display: inline-block; }
+        .recipe-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+        .recipe-title { font-size: 16px; font-weight: bold; color: var(--text-color); text-decoration: none; flex: 1; margin-right: 8px; }
         .recipe-title::after { content: " 🔗"; font-size: 12px; }
-        .recipe-meta { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
+        
+        /* アコーディオン（折りたたみ設定） */
+        .toggle-details { background: #fdfdfd; border: 1px solid #eee; border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+        .toggle-summary { padding: 8px 12px; font-size: 13px; color: var(--primary-color); font-weight: bold; cursor: pointer; outline: none; user-select: none; }
+        .toggle-content { padding: 0 12px 12px 12px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; color: #555; }
         
         /* 操作ボタン */
         .card-actions { display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid #f0f0f0; padding-top: 12px; }
@@ -52,8 +57,8 @@
         .action-btn.delete { border-color: #ff3b30; color: #ff3b30; }
 
         /* 買い物リスト */
-        .shop-item { background: var(--card-bg); padding: 12px 16px; border-radius: 8px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
-        .shop-text { font-size: 14px; }
+        .shop-item { background: var(--card-bg); padding: 16px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .shop-title { font-size: 15px; font-weight: bold; border-bottom: 1px solid #f0f0f0; padding-bottom: 6px; margin-bottom: 8px; color: var(--primary-color); }
 
         /* 実家モードスイッチ */
         .jikka-toggle { background: #fff3e0; padding: 12px; border-radius: 8px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #ffe0b2; }
@@ -99,7 +104,7 @@
             <div class="form-group">
                 <input type="text" id="form-title" placeholder="料理名（例：ハンバーグ）">
                 <input type="url" id="form-url" placeholder="レシピURL">
-                <textarea id="form-ingredients" placeholder="買うもの・材料（例：ひき肉、玉ねぎ）&#10;※自動で買い物リストに入ります"></textarea>
+                <textarea id="form-ingredients" placeholder="買うもの・材料を改行して入力&#10;（例）&#10;ひき肉 300g&#10;玉ねぎ 1個&#10;ケチャップ"></textarea>
                 <button class="btn-submit" onclick="addRecipe()">レシピを保存する</button>
             </div>
         </div>
@@ -206,7 +211,7 @@
 
         // 📤 リストア（読み込み機能）
         function importData(input) {
-            const file = input.files[0];
+            const file = input.files[0]; //[0]いらない…？
             if (!file) return;
 
             const reader = new FileReader();
@@ -249,9 +254,17 @@
                     const card = document.createElement('div');
                     card.className = 'recipe-card';
                     card.innerHTML = `
-                        <a href="${r.url}" target="_blank" class="recipe-title">${r.title}</a>
-                        <div class="recipe-meta">材料: ${r.ingredients || '未登録'}</div>
-                        <div style="margin-bottom:8px; font-size:13px;">
+                        <div class="recipe-header">
+                            <a href="${r.url}" target="_blank" class="recipe-title">${r.title}</a>
+                        </div>
+                        
+                        <!-- 📋 折りたたみ式材料エリア -->
+                        <details class="toggle-details">
+                            <summary class="toggle-summary">▼ 材料・買うものを表示</summary>
+                            <div class="toggle-content">${r.ingredients || '未登録'}</div>
+                        </details>
+
+                        <div style="margin-bottom:12px; font-size:13px;">
                             <label><input type="checkbox" ${r.jikkaChecked ? 'checked' : ''} onchange="toggleJikka(${r.id})"> 実家で作った</label>
                         </div>
                         <div class="card-actions">
@@ -264,11 +277,16 @@
                     recipeList.appendChild(card);
                 }
 
+                // 買い物タブでも折りたたんでスッキリ表示
                 if (r.ingredients) {
                     const shopCard = document.createElement('div');
                     shopCard.className = 'shop-item';
                     shopCard.innerHTML = `
-                        <span class="shop-text"><strong>【${r.title}】</strong><br>${r.ingredients}</span>
+                        <div class="shop-title">【${r.title}】</div>
+                        <details class="toggle-details" open> <!-- 買い物は最初から開いておく設定（お好みで消せます） -->
+                            <summary class="toggle-summary">▼ 買うものリスト</summary>
+                            <div class="toggle-content">${r.ingredients}</div>
+                        </details>
                     `;
                     shoppingList.appendChild(shopCard);
                 }
