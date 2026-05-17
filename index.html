@@ -8,6 +8,53 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Myレシピ">
+    <!-- PWA用の設定ファイル読み込み -->
+    <link rel="manifest" href="manifest.json">
+
+    <script>
+    // サービスワーカー（sw.js）を登録する設定
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js')
+        .then(() => console.log('PWA準備完了'))
+        .catch(err => console.error('PWA登録失敗', err));
+    }
+
+    // iPhoneの共有から送られてきたデータを受け取る処理
+    window.addEventListener('DOMContentLoaded', () => {
+        // 1. URLのパラメータ（共有データ）を解析
+        const urlParams = new URLSearchParams(window.location.search);
+        const sharedTitle = urlParams.get('shared_title');
+        const sharedUrl = urlParams.get('shared_url') || urlParams.get('shared_text');
+
+        // 2. もし共有データが存在していたら（iPhoneから共有で開かれた時だけ実行）
+        if (sharedTitle || sharedUrl) {
+
+            // 指定の入力欄（id="form-title" と id="form-url"）にデータを流し込む
+            if (sharedTitle && document.getElementById('form-title')) {
+                document.getElementById('form-title').value = sharedTitle;
+            }
+            if (sharedUrl && document.getElementById('form-url')) {
+                document.getElementById('form-url').value = sharedUrl;
+            }
+
+            // 3. 自動的に「登録画面（view-add）」に切り替える処理
+            // すべての画面（.view）から active クラスを外す
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            // 登録画面（view-add）だけに active クラスを付けて表示する
+            document.getElementById('view-add').classList.add('active');
+
+            // タブボタンの見た目（active）も「追加」ボタンに切り替える
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                // もしボタンの onclick に 'add' という文字が含まれていたら active にする
+                if (b.getAttribute('onclick') && b.getAttribute('onclick').includes('add')) {
+                    b.classList.add('active');
+                } else {
+                    b.classList.remove('active');
+                }
+            });
+        }
+    });
+    </script>
     <style>
         :root {
             --primary-color: #ff6f00; /* デリッシュキッチン風オレンジ */
