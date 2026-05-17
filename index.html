@@ -184,14 +184,6 @@
             switchTab('recipes');
         }
 
-        function saveMemo(id) {
-            const newMemo = document.getElementById(`memo-edit-${id}`).value;
-            recipes = recipes.map(r => r.id === id ? {...r, memo: newMemo} : r);
-            saveData();
-            alert('メモを保存しました！');
-            renderRecipes();
-        }
-
         function moveCategory(id, newCategory) {
             recipes = recipes.map(r => r.id === id ? {...r, category: newCategory} : r);
             saveData();
@@ -330,10 +322,7 @@
                         <!-- ✍️ 折りたたみ式メモ・コツエリア -->
                         <details class="toggle-details">
                             <summary class="toggle-summary" style="color: #4a90e2;">✍️ メモ・コツを表示</summary>
-                            <div class="toggle-content">
-                                <textarea id="memo-edit-${r.id}" style="width:100%; height:60px; padding:6px; font-size:13px; border:1px solid #ddd; border-radius:4px; resize:none; margin-bottom:6px;">${r.memo || ''}</textarea>
-                                <button class="action-btn" style="border-color:#4a90e2; color:#4a90e2; font-weight:bold; padding:4px 10px;" onclick="saveMemo(${r.id})">メモを保存</button>
-                            </div>
+                            <div class="toggle-content">${r.memo || '未登録'}</div>
                         </details>
                     
                         <div style="margin-bottom:12px; font-size:13px;">
