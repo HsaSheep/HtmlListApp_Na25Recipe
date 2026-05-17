@@ -168,7 +168,11 @@
         <div id="view-add" class="view">
             <div class="form-group">
                 <input type="text" id="form-title" placeholder="料理名（例：ハンバーグ）">
-                <input type="url" id="form-url" placeholder="レシピURL">
+                <!-- 💡 URL入力欄の横、または下にボタンを配置 -->
+                <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                    <input type="url" id="form-url" placeholder="レシピURL" style="flex: 1; margin-bottom: 0;">
+                    <button type="button" onclick="autoFillFromClipboard()" style="padding: 8px 12px; background: #e65100; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer;">📋 自動入力</button>
+                </div>
                 <textarea id="form-ingredients" placeholder="買うもの・材料を改行して入力&#10;（例）&#10;ひき肉 300g&#10;玉ねぎ 1個&#10;ケチャップ"></textarea>
                 <textarea id="form-memo" placeholder="作ったときのメモ・コツ（例：塩は少し多めにする、実家で好評）"></textarea>
                 <button class="btn-submit" onclick="addRecipe()">レシピを保存する</button>
@@ -205,6 +209,78 @@
             document.getElementById(`view-${tabName}`).classList.add('active');
             event.target.classList.add('active');
             if(tabName === 'recipes' || tabName === 'shopping') renderRecipes();
+        }
+
+        async function autoFillFromClipboard() {
+            // 画面のボタンと入力欄の要素を取得
+            const urlInput = document.getElementById('form-url');
+            const titleInput = document.getElementById('form-title');
+            // onclick属性に「autoFillFromClipboard()」が書かれているボタンを探す
+            const button = document.querySelector('button[onclick*="autoFillFromClipboard"]');
+
+            // 元のボタンの文字を保存しておく
+            const originalBtnText = button ? button.innerHTML : '📋 自動入力';
+
+            try {
+                // クリップボードからURLを取得
+                const copiedText = await navigator.clipboard.readText();
+
+                if (!copiedText.startsWith('http')) {
+                    alert('クリップボードに正しいURLがコピーされていません。');
+                    return;
+                }
+            
+                // URL入力欄にセットし、読み込み中表示にする
+                urlInput.value = copiedText;
+                titleInput.value = ""; // 一旦クリア
+                titleInput.placeholder = "料理名を取得中... ⏳";
+                if (button) {
+                    button.innerHTML = '⏳ 取得中...';
+                    button.disabled = true; // 連続クリック防止
+                }
+            
+                // Proxy問い合わせ用URL作成
+                const proxyUrl = 'https://corsproxy.io?' + encodeURIComponent(copiedText);
+                console.log("リクエスト送信先:", proxyUrl);
+            
+                // 通信してHTMLテキストをダウンロード
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error('ネットワークエラーが発生しました');
+
+                const htmlText = await response.text();
+
+                if (htmlText) {
+                    // HTMLからタイトルタグの中身を抽出
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(htmlText, 'text/html');
+                    const pageTitle = doc.querySelector('title')?.textContent;
+                
+                    if (pageTitle) {
+                        // タイトルから前後の余白を削る
+                        let cleanedTitle = pageTitle.trim();
+                        // よくあるレシピサイトの共通の文言を消去する
+                        // (「 | デリッシュキッチン」「 - クックパッド」「 | クラシル」などをまとめて消します)
+                        cleanedTitle = cleanedTitle.replace(/\s*[|ー-]\s*(デリッシュキッチン|クックパッド|クラシル|マカロニ|キッコーマン|AJINOMOTO|Nadia|ナディア|レシピ|作り方).*/i, '');
+                        // 【デリッシュキッチン】などの先頭や末尾のカッコ系の飾りも消す
+                        cleanedTitle = cleanedTitle.replace(/^【[^】]+】\s*/, '');
+                        // 綺麗になったタイトルを入力欄にセット
+                        titleInput.value = cleanedTitle;
+                        titleInput.placeholder = "料理名（例：ハンバーグ）";
+                    } else {
+                        titleInput.placeholder = "料理名（タイトルが見つかりませんでした）";
+                    }
+                }
+            } catch (err) {
+                console.error('読み込み失敗:', err);
+                alert('料理名の自動取得に失敗しました。URLは手動で修正・入力できます。');
+                titleInput.placeholder = "料理名（例：ハンバーグ）";
+            } finally {
+                // 6. 成功・失敗に関わらずボタンの状態を元に戻す
+                if (button) {
+                    button.innerHTML = originalBtnText;
+                    button.disabled = false;
+                }
+            }
         }
 
         function addRecipe() {
