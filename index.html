@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Myレシピ管理</title>
+    <!-- PWA用の設定 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Myレシピ">
+    <style>
+        :root {
+            --primary-color: #ff6f00; /* デリッシュキッチン風オレンジ */
+            --bg-color: #f7f7f7;
+            --card-bg: #ffffff;
+            --text-color: #333333;
+            --text-muted: #777777;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-color); padding-bottom: 80px; }
+        
+        /* ヘッダー */
+        header { background-color: var(--card-bg); padding: 16px; border-bottom: 1px solid #e0e0e0; text-align: center; position: sticky; top: 0; z-index: 100; }
+        header h1 { font-size: 18px; color: var(--primary-color); }
+
+        /* タブ切り替え */
+        .tabs { display: flex; background: var(--card-bg); border-bottom: 1px solid #e0e0e0; }
+        .tab-btn { flex: 1; padding: 12px; text-align: center; border: none; background: none; font-size: 14px; font-weight: bold; color: var(--text-muted); cursor: pointer; }
+        .tab-btn.active { color: var(--primary-color); border-bottom: 3px solid var(--primary-color); }
+
+        /* メインコンテンツ */
+        .container { padding: 16px; }
+        .view { display: none; }
+        .view.active { display: block; }
+
+        /* レシピ追加フォーム & 設定エリア */
+        .form-group, .setting-group { background: var(--card-bg); padding: 16px; border-radius: 12px; margin-bottom: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .form-group input, .form-group textarea { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #dddddd; border-radius: 6px; font-size: 14px; }
+        .form-group textarea { height: 60px; resize: none; }
+        .btn-submit { width: 100%; background: var(--primary-color); color: white; padding: 12px; border: none; border-radius: 6px; font-weight: bold; font-size: 14px; cursor: pointer; }
+
+        /* レシピカード */
+        .recipe-card { background: var(--card-bg); padding: 16px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .recipe-title { font-size: 16px; font-weight: bold; margin-bottom: 6px; color: var(--text-color); text-decoration: none; display: inline-block; }
+        .recipe-title::after { content: " 🔗"; font-size: 12px; }
+        .recipe-meta { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
+        
+        /* 操作ボタン */
+        .card-actions { display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid #f0f0f0; padding-top: 12px; }
+        .action-btn { padding: 6px 12px; border-radius: 20px; border: 1px solid #ddd; background: white; font-size: 12px; cursor: pointer; }
+        .action-btn.move { border-color: var(--primary-color); color: var(--primary-color); }
+        .action-btn.delete { border-color: #ff3b30; color: #ff3b30; }
+
+        /* 買い物リスト */
+        .shop-item { background: var(--card-bg); padding: 12px 16px; border-radius: 8px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+        .shop-text { font-size: 14px; }
+
+        /* 実家モードスイッチ */
+        .jikka-toggle { background: #fff3e0; padding: 12px; border-radius: 8px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #ffe0b2; }
+        .jikka-toggle label { font-size: 14px; font-weight: bold; color: #e65100; }
+
+        /* 設定画面用ボタン */
+        .btn-backup { background: #4cd964; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; width: 100%; margin-bottom: 12px; cursor: pointer; }
+        .btn-restore { background: #5856d6; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; width: 100%; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Myレシピ管理 App</h1>
+    </header>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('recipes')">レシピ一覧</button>
+        <button class="tab-btn" onclick="switchTab('add')">レシピ登録</button>
+        <button class="tab-btn" onclick="switchTab('shopping')">買い物</button>
+        <button class="tab-btn" onclick="switchTab('settings')">設定</button>
+    </div>
+
+    <div class="container">
+        <!-- レシピ一覧画面 -->
+        <div id="view-recipes" class="view active">
+            <div class="jikka-toggle">
+                <label for="jikka-mode">🏠 実家モード（未作成のみ表示）</label>
+                <input type="checkbox" id="jikka-mode" onchange="renderRecipes()" style="width: 20px; height: 20px;">
+            </div>
+            <div style="margin-bottom: 12px; display: flex; gap: 8px;">
+                <select id="category-filter" onchange="renderRecipes()" style="padding: 8px; border-radius: 6px; border: 1px solid #ddd; flex: 1; font-size: 14px;">
+                    <option value="新作">●新作</option>
+                    <option value="おいしかった">●おいしかった</option>
+                    <option value="もう作らない">●もう作らない</option>
+                </select>
+            </div>
+            <div id="recipe-list"></div>
+        </div>
+
+        <!-- レシピ登録画面 -->
+        <div id="view-add" class="view">
+            <div class="form-group">
+                <input type="text" id="form-title" placeholder="料理名（例：ハンバーグ）">
+                <input type="url" id="form-url" placeholder="レシピURL">
+                <textarea id="form-ingredients" placeholder="買うもの・材料（例：ひき肉、玉ねぎ）&#10;※自動で買い物リストに入ります"></textarea>
+                <button class="btn-submit" onclick="addRecipe()">レシピを保存する</button>
+            </div>
+        </div>
+
+        <!-- 買い物リスト画面 -->
+        <div id="view-shopping" class="view">
+            <div id="shopping-list"></div>
+        </div>
+
+        <!-- 設定・データ管理画面 -->
+        <div id="view-settings" class="view">
+            <div class="setting-group">
+                <h3 style="margin-bottom: 12px; font-size: 15px;">📊 データのバックアップ</h3>
+                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">これまでのレシピデータを1つのファイルとしてiPhone内にダウンロード保存します。月1回などの保存がおすすめです。</p>
+                <button class="btn-backup" onclick="exportData()">データを保存する（書き出し）</button>
+            </div>
+            <div class="setting-group">
+                <h3 style="margin-bottom: 12px; font-size: 15px;">🔄 データの復元（リストア）</h3>
+                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">スマホを買い替えた時や、消えてしまった時に、保存したファイルを読み込んで元通りに復元します。</p>
+                <input type="file" id="import-file" accept=".json" style="display: none;" onchange="importData(this)">
+                <button class="btn-restore" onclick="document.getElementById('import-file').click()">データを復元する（読み込み）</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let recipes = JSON.parse(localStorage.getItem('my_recipes')) || [];
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.getElementById(`view-${tabName}`).classList.add('active');
+            event.target.classList.add('active');
+            if(tabName === 'recipes' || tabName === 'shopping') renderRecipes();
+        }
+
+        function addRecipe() {
+            const title = document.getElementById('form-title').value;
+            const url = document.getElementById('form-url').value;
+            const ingredients = document.getElementById('form-ingredients').value;
+
+            if (!title) return alert('料理名を入力してください');
+
+            const newRecipe = {
+                id: Date.now(),
+                title: title,
+                url: url || '#',
+                ingredients: ingredients,
+                category: '新作',
+                jikkaChecked: false
+            };
+
+            recipes.push(newRecipe);
+            saveData();
+            
+            document.getElementById('form-title').value = '';
+            document.getElementById('form-url').value = '';
+            document.getElementById('form-ingredients').value = '';
+            alert('登録しました！');
+            switchTab('recipes');
+        }
+
+        function moveCategory(id, newCategory) {
+            recipes = recipes.map(r => r.id === id ? {...r, category: newCategory} : r);
+            saveData();
+            renderRecipes();
+        }
+
+        function toggleJikka(id) {
+            recipes = recipes.map(r => r.id === id ? {...r, jikkaChecked: !r.jikkaChecked} : r);
+            saveData();
+            renderRecipes();
+        }
+
+        function deleteRecipe(id) {
+            if(confirm('本当に削除しますか？')) {
+                recipes = recipes.filter(r => r.id !== id);
+                saveData();
+                renderRecipes();
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('my_recipes', JSON.stringify(recipes));
+        }
+
+        // 📥 バックアップ（書き出し機能）
+        function exportData() {
+            if (recipes.length === 0) return alert('保存するレシピがありません。');
+            const dataStr = JSON.stringify(recipes, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            // ファイル名に日付を自動付与 (例: recipe_backup_20261025.json)
+            const today = new Date().toISOString().slice(0,10).replace(/-/g,"");
+            a.download = `recipe_backup_${today}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // 📤 リストア（読み込み機能）
+        function importData(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedRecipes = JSON.parse(e.target.result);
+                    if (Array.isArray(importedRecipes)) {
+                        if (confirm('データを復元しますか？（現在のデータは上書きされます）')) {
+                            recipes = importedRecipes;
+                            saveData();
+                            renderRecipes();
+                            alert('データを正常に復元しました！');
+                            switchTab('recipes');
+                        }
+                    } else {
+                        alert('ファイル形式が正しくありません。');
+                    }
+                } catch (err) {
+                    alert('ファイルの読み込みに失敗しました。');
+                }
+            };
+            reader.readAsText(file);
+            input.value = ''; // ファイル選択をリセット
+        }
+
+        function renderRecipes() {
+            const currentCat = document.getElementById('category-filter').value;
+            const jikkaMode = document.getElementById('jikka-mode').checked;
+            
+            const recipeList = document.getElementById('recipe-list');
+            const shoppingList = document.getElementById('shopping-list');
+            
+            recipeList.innerHTML = '';
+            shoppingList.innerHTML = '';
+
+            recipes.forEach(r => {
+                const matchJikka = !jikkaMode || (r.category === 'おいしかった' && !r.jikkaChecked);
+                
+                if (r.category === currentCat && matchJikka) {
+                    const card = document.createElement('div');
+                    card.className = 'recipe-card';
+                    card.innerHTML = `
+                        <a href="${r.url}" target="_blank" class="recipe-title">${r.title}</a>
+                        <div class="recipe-meta">材料: ${r.ingredients || '未登録'}</div>
+                        <div style="margin-bottom:8px; font-size:13px;">
+                            <label><input type="checkbox" ${r.jikkaChecked ? 'checked' : ''} onchange="toggleJikka(${r.id})"> 実家で作った</label>
+                        </div>
+                        <div class="card-actions">
+                            ${r.category !== '新作' ? `<button class="action-btn move" onclick="moveCategory(${r.id}, '新作')">新作へ</button>` : ''}
+                            ${r.category !== 'おいしかった' ? `<button class="action-btn move" onclick="moveCategory(${r.id}, 'おいしかった')">おいしかった</button>` : ''}
+                            ${r.category !== 'もう作らない' ? `<button class="action-btn move" onclick="moveCategory(${r.id}, 'もう作らない')">もう作らない</button>` : ''}
+                            <button class="action-btn delete" onclick="deleteRecipe(${r.id})">削除</button>
+                        </div>
+                    `;
+                    recipeList.appendChild(card);
+                }
+
+                if (r.ingredients) {
+                    const shopCard = document.createElement('div');
+                    shopCard.className = 'shop-item';
+                    shopCard.innerHTML = `
+                        <span class="shop-text"><strong>【${r.title}】</strong><br>${r.ingredients}</span>
+                    `;
+                    shoppingList.appendChild(shopCard);
+                }
+            });
+            
+            if(recipeList.innerHTML === '') recipeList.innerHTML = '<p style="text-align:center; color:#777; padding:20px;">レシピがありません</p>';
+            if(shoppingList.innerHTML === '') shoppingList.innerHTML = '<p style="text-align:center; color:#777; padding:20px;">買うものはありません</p>';
+        }
+
+        renderRecipes();
+    </script>
+</body>
+</html>
