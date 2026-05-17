@@ -54,6 +54,7 @@
         .card-actions { display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid #f0f0f0; padding-top: 12px; }
         .action-btn { padding: 6px 12px; border-radius: 20px; border: 1px solid #ddd; background: white; font-size: 12px; cursor: pointer; }
         .action-btn.move { border-color: var(--primary-color); color: var(--primary-color); }
+        .action-btn.edit { border-color: var(--primary-color); color: var(--primary-color); }
         .action-btn.delete { border-color: #ff3b30; color: #ff3b30; }
 
         /* 買い物リスト */
@@ -98,7 +99,19 @@
             </div>
             <div id="recipe-list"></div>
         </div>
-
+        
+        <!-- レシピ編集画面 -->
+        <div id="view-edit" class="view">
+            <div class="form-group">
+                <input type="hidden" id="edit-id"> <!-- 隠しフィールドでレシピIDを保持 -->
+                <input type="text" id="edit-title" placeholder="料理名（例：ハンバーグ）">
+                <input type="url" id="edit-url" placeholder="レシピURL">
+                <textarea id="edit-ingredients" placeholder="買うもの・材料を改行して入力&#10;（例）&#10;ひき肉 300g&#10;玉ねぎ 1個&#10;ケチャップ"></textarea>
+                <textarea id="edit-memo" placeholder="作ったときのメモ・コツ（例：塩は少し多めにする、実家で好評）"></textarea>
+                <button class="btn-submit" onclick="updateRecipe()">レシピを更新する</button>
+            </div>
+        </div>
+        
         <!-- レシピ登録画面 -->
         <div id="view-add" class="view">
             <div class="form-group">
@@ -155,7 +168,7 @@
                 title: title,
                 url: url || '#',
                 ingredients: ingredients,
-                memo: memo || '', // ★追加（ない場合は空っぽ）
+                memo: memo || '', // （ない場合は空っぽ）
                 category: '新作',
                 jikkaChecked: false
             };
@@ -166,7 +179,7 @@
             document.getElementById('form-title').value = '';
             document.getElementById('form-url').value = '';
             document.getElementById('form-ingredients').value = '';
-            document.getElementById('form-memo').value = ''; // ★追加
+            document.getElementById('form-memo').value = '';
             alert('登録しました！');
             switchTab('recipes');
         }
@@ -197,6 +210,44 @@
                 saveData();
                 renderRecipes();
             }
+        }
+
+        // 編集画面を開く関数
+        function editRecipe(id) {
+            const recipe = recipes.find(r => r.id === id);
+            if (recipe) {
+                document.getElementById('edit-id').value = recipe.id;
+                document.getElementById('edit-title').value = recipe.title;
+                document.getElementById('edit-url').value = recipe.url || '';
+                document.getElementById('edit-ingredients').value = recipe.ingredients;
+                document.getElementById('edit-memo').value = recipe.memo || '';
+            
+                // 編集画面に遷移
+                switchTab('edit');
+            }
+        }
+
+        // レシピを更新する関数
+        function updateRecipe() {
+            const id = parseInt(document.getElementById('edit-id').value);
+            const title = document.getElementById('edit-title').value;
+            const url = document.getElementById('edit-url').value;
+            const ingredients = document.getElementById('edit-ingredients').value;
+            const memo = document.getElementById('edit-memo').value;
+        
+            if (!title) return alert('料理名を入力してください');
+        
+            recipes = recipes.map(r => r.id === id ? {
+                ...r,
+                title: title,
+                url: url || '#',
+                ingredients: ingredients,
+                memo: memo || ''
+            } : r);
+        
+            saveData();
+            alert('更新しました！');
+            switchTab('recipes');
         }
 
         function saveData() {
@@ -276,7 +327,7 @@
                             <div class="toggle-content">${r.ingredients || '未登録'}</div>
                         </details>
                     
-                        <!-- ✍️ 折りたたみ式メモ・コツエリア（★追加） -->
+                        <!-- ✍️ 折りたたみ式メモ・コツエリア -->
                         <details class="toggle-details">
                             <summary class="toggle-summary" style="color: #4a90e2;">✍️ メモ・コツを表示</summary>
                             <div class="toggle-content">
@@ -292,6 +343,7 @@
                             ${r.category !== '新作' ? `<button class="action-btn move" onclick="moveCategory(${r.id}, '新作')">新作へ</button>` : ''}
                             ${r.category !== 'おいしかった' ? `<button class="action-btn move" onclick="moveCategory(${r.id}, 'おいしかった')">おいしかった</button>` : ''}
                             ${r.category !== 'もう作らない' ? `<button class="action-btn move" onclick="moveCategory(${r.id}, 'もう作らない')">もう作らない</button>` : ''}
+                            <button class="action-btn edit" onclick="editRecipe(${r.id})">編集</button> <!-- 編集ボタン追加 -->
                             <button class="action-btn delete" onclick="deleteRecipe(${r.id})">削除</button>
                         </div>
                     `;
@@ -321,3 +373,4 @@
     </script>
 </body>
 </html>
+
