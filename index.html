@@ -86,16 +86,16 @@
     <div class="container">
         <!-- レシピ一覧画面 -->
         <div id="view-recipes" class="view active">
-            <div class="jikka-toggle">
-                <label for="jikka-mode">🏠 実家モード（未作成のみ表示）</label>
-                <input type="checkbox" id="jikka-mode" onchange="renderRecipes()" style="width: 20px; height: 20px;">
-            </div>
             <div style="margin-bottom: 12px; display: flex; gap: 8px;">
                 <select id="category-filter" onchange="renderRecipes()" style="padding: 8px; border-radius: 6px; border: 1px solid #ddd; flex: 1; font-size: 14px;">
                     <option value="新作">●新作</option>
                     <option value="おいしかった">●おいしかった</option>
                     <option value="もう作らない">●もう作らない</option>
                 </select>
+            </div>
+            <div id="jikka-toggle-area" class="jikka-toggle">
+                <label for="jikka-mode">🏠 実家モード（未作成のみ表示）</label>
+                <input type="checkbox" id="jikka-mode" onchange="renderRecipes()" style="width: 20px; height: 20px;">
             </div>
             <div id="recipe-list"></div>
         </div>
@@ -293,12 +293,24 @@
         }
 
         function renderRecipes() {
+            // レシピの表示
             const currentCat = document.getElementById('category-filter').value;
             const jikkaMode = document.getElementById('jikka-mode').checked;
             
             const recipeList = document.getElementById('recipe-list');
             const shoppingList = document.getElementById('shopping-list');
-            
+
+            // 実家で作ってないものだけ表示チェックの表示非表示
+            // 切り替えたいトグルエリアの要素を取得
+            const jikkaToggleArea = document.getElementById("jikka-toggle-area");
+            // 選ばれている値が「新作」または「もう作らない」のときだけ hidden 属性を true にして「非表示」にする
+            // (それ以外の時は hidden 属性を消して表示)
+            if (currentCat === '新作' || currentCat === 'もう作らない') {
+                jikkaToggleArea.style.display = 'none'; // 非表示
+            } else {
+                jikkaToggleArea.style.display = 'flex'; // 表示
+            }
+
             recipeList.innerHTML = '';
             shoppingList.innerHTML = '';
 
@@ -325,7 +337,7 @@
                             <div class="toggle-content">${r.memo || '未登録'}</div>
                         </details>
                     
-                        <div style="margin-bottom:12px; font-size:13px;">
+                        <div style="margin-bottom:12px; font-size:13px;" ${ !['新作', 'もう作らない'].includes(r.category) ? '' : 'hidden' }>
                             <label><input type="checkbox" ${r.jikkaChecked ? 'checked' : ''} onchange="toggleJikka(${r.id})"> 実家で作った</label>
                         </div>
                         <div class="card-actions">
