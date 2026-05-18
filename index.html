@@ -215,6 +215,7 @@
             // 画面のボタンと入力欄の要素を取得
             const urlInput = document.getElementById('form-url');
             const titleInput = document.getElementById('form-title');
+            const ingredientsInput = document.getElementById('form-ingredients');
             // onclick属性に「autoFillFromClipboard()」が書かれているボタンを探す
             const button = document.querySelector('button[onclick*="autoFillFromClipboard"]');
 
@@ -263,11 +264,142 @@
                         cleanedTitle = cleanedTitle.replace(/\s*[|ー-]\s*(デリッシュキッチン|クックパッド|クラシル|マカロニ|キッコーマン|AJINOMOTO|Nadia|ナディア|レシピ|作り方).*/i, '');
                         // 【デリッシュキッチン】などの先頭や末尾のカッコ系の飾りも消す
                         cleanedTitle = cleanedTitle.replace(/^【[^】]+】\s*/, '');
+                        console.log("取得タイトル:", cleanedTitle);
                         // 綺麗になったタイトルを入力欄にセット
                         titleInput.value = cleanedTitle;
                         titleInput.placeholder = "料理名（例：ハンバーグ）";
                     } else {
                         titleInput.placeholder = "料理名（タイトルが見つかりませんでした）";
+                    }
+
+                    // 1. 各レシピサイトの解析ルールを定義（コンテナ要素を追加）
+                    const recipeParsers = {
+                        'delishkitchen.tv': {
+                            type: 'text-list',
+                            // 材料が囲まれている親要素（これ以外の中身は無視する）
+                            container: '.ingredient-list, [class*="IngredientList"], .ingredients-list, [class*="ingredients"]',
+                            serving: '.ingredient-serving, [class*="serving"], [class*="Serving"]',
+                            rows: 'li, [class*="Item"]'
+                        },
+                        'cookpad.com': {
+                            type: 'structured',
+                            container: '#ingredients, .ingredients, #ingredients_list',
+                            serving: '.servings_for, #servings_for, [class*="serving"]',
+                            rows: '.ingredient, .ingredient_row',
+                            group: '.ingredient_group',
+                            name: '.name, .ingredient_name',
+                            amount: '.quantity, .ingredient_quantity'
+                        },
+                        'kurashiru.com': {
+                            type: 'structured',
+                            container: '.ingredient-list, [class*="IngredientList"]',
+                            serving: '.title-serving, [class*="serving"]',
+                            rows: '.ingredient-list-item',
+                            group: '.ingredient-group-name',
+                            name: '.ingredient-name',
+                            amount: '.ingredient-quantity'
+                        }
+                    };
+
+                    // 2. 現在のURLからドメインを特定
+                    let domain = '';
+                    try {
+                        const urlObj = new URL(copiedText.trim());
+                        domain = urlObj.hostname.replace('www.', '');
+                    } catch (e) {
+                        console.error("URLの解析に失敗しました", e);
+                    }
+
+                    // 3. ルールを取得（なければデリッシュを仮適用）
+                    const siteRule = recipeParsers[domain] || recipeParsers['delishkitchen.tv'];
+
+                    if (siteRule) {
+                        try {
+                            // まず材料の「親要素（エリア）」を特定する
+                            const containerElement = doc.querySelector(siteRule.container);
+                            
+                            // 親要素が見つかった場合はその中から、見つからなかった場合は全体から探す（安全対策）
+                            const searchScope = containerElement || doc;
+
+                            // 何人分かを取得して整形
+                            const servingElement = doc.querySelector(siteRule.serving);
+                            let servingText = servingElement ? servingElement.textContent.trim() : '材料';
+                            servingText = servingText.replace(/材料/g, '').replace(/[【】]/g, '').trim();
+                            
+                            let ingredientsList = `【${servingText || '材料'}】\n`;
+                            
+                            // 【重要】限定されたスコープ内からのみ、材料行をすべて取得
+                            const ingredientRows = searchScope.querySelectorAll(siteRule.rows);
+
+                            // 共通の除外ワード（念のための防衛策）
+                            const validRows = Array.from(ingredientRows).filter(row => {
+                                const text = row.textContent.trim();
+                                if (/カロリー|炭水化物|脂質|たんぱく質|糖質|塩分|目安|費用|特定商取引|プライバシー|利用規約/.test(text) || text === '') {
+                                    return false;
+                                }
+                                return true;
+                            });
+
+                            if (validRows.length > 0) {
+                                validRows.forEach(row => {
+                                    const text = row.textContent.trim().replace(/^\s*-\s*/, '');
+
+                                    // Aパターン：デリッシュなどの「テキスト箇条書き」タイプ
+                                    if (siteRule.type === 'text-list') {
+                                        if (text.startsWith('☆') || text.startsWith('★')) {
+                                            ingredientsList += `\n`;
+                                            ingredientsList += `▼ ${text}\n`;
+                                        } else {
+                                            // 数量によく使われるキーワード（数字、小さじ、大さじ、少々、適量、ひとつまみなど）の直前を切り分ける
+                                            let spacedText = text;
+                                            const match = text.match(/(小さじ|大さじ|少々|適量|ひとつまみ|適宜|[\d０-９½⅓¼]+)/);
+                                            
+                                            if (match) {
+                                                const keyword = match[0];
+                                                const index = text.indexOf(keyword);
+                                                
+                                                if (index > 0) {
+                                                    const name = text.substring(0, index).trim();
+                                                    const amount = text.substring(index).trim();
+                                                    
+                                                    // ここで「名前」と「分量」の間の繋ぎ方を指定します
+                                                    // 全角スペース2つの場合： `${name}　　${amount}`
+                                                    // コロン区切りの場合   ： `${name}：${amount}`
+                                                    spacedText = `${name}　　${amount}`;
+                                                }
+                                            }
+                                            ingredientsList += `・${spacedText}\n`;
+                                        }
+                                    } 
+                                    // Bパターン：構造化HTMLタイプ
+                                    else if (siteRule.type === 'structured') {
+                                        if (siteRule.group && row.querySelector(siteRule.group)) {
+                                            ingredientsList += `▼${row.querySelector(siteRule.group).textContent.trim()}\n`;
+                                            return;
+                                        }
+                                        const nameElement = row.querySelector(siteRule.name);
+                                        const amountElement = row.querySelector(siteRule.amount);
+
+                                        if (nameElement && amountElement) {
+                                            ingredientsList += `・${nameElement.textContent.trim()}  ${amountElement.textContent.trim()}\n`;
+                                        } else {
+                                            ingredientsList += `・${text}\n`;
+                                        }
+                                    }
+                                });
+                                
+                                ingredientsInput.value = ingredientsList.trim();
+                            } else {
+                                ingredientsInput.placeholder = "材料エリアを特定できませんでした";
+                            }
+                        } catch (e) {
+                            console.error("材料抽出エラー:", e);
+                            ingredientsInput.placeholder = "材料解析中にエラーが発生しました";
+                        }
+                        // 材料解析部分終了
+                    } else {
+                        // 対応していないサイトの場合のフォールバック（手動コピペ用など）
+                        ingredientsInput.placeholder = "このサイトの材料自動抽出には対応していません";
                     }
                 }
             } catch (err) {
